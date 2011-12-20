@@ -1,6 +1,6 @@
 # Eventually
 
-`Eventually` is a module that facilitates evented callback management *similar* to the [EventEmitter API](http://nodejs.org/docs/v0.4.7/api/events.html) in NodeJS. Support for Ruby's various lambda-ish callback styles is heavily baked in, so using blocks, lambdas, procs, or event detached methods works out of the box, batteries included. Simply include `Eventually` in the class you will be emitting events from, register some listeners and fire away.
+`Eventually` is a module that facilitates evented callback management *similar* to the [EventEmitter API](http://nodejs.org/docs/v0.4.7/api/events.html) in NodeJS. Support for Ruby's various callback styles is heavily baked in, so using blocks, lambdas, procs, or even detached methods works out of the box, batteries included. Simply include `Eventually` in the class you will be emitting events from, register some listeners and fire away.
 
 ```ruby
 class Car
