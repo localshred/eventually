@@ -7,9 +7,9 @@ Gem::Specification.new do |s|
   s.version     = Eventually::VERSION
   s.authors     = ["BJ Neilsen"]
   s.email       = ["bj.neilsen@gmail.com"]
-  s.homepage    = ""
-  s.summary     = %q{Eventually is an event library built to mirror the NodeJS EventEmitter API}
-  s.description = %q{}
+  s.homepage    = "http://www.rand9.com"
+  s.summary     = %q{Eventually is an event library built to loosely mirror the NodeJS EventEmitter API.}
+  s.description = s.summary
 
   s.rubyforge_project = "eventually"
 
