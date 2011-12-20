@@ -74,6 +74,7 @@ car = Car.new
 car.on(:turning) do
   puts 'the car is turning'
 end
+```
 
 *See the **examples/scrict.rb** file for more on this.*
 
