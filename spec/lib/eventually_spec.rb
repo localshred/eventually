@@ -86,6 +86,12 @@ describe Eventually do
           Emitter.validates_arity?(:jigger).should be_true
         end
         
+        it 'allows 0 as a specified arity' do
+          Emitter.emits(:jigger, arity: 0)
+          Emitter.emits?(:jigger)
+          Emitter.validates_arity?(:jigger).should be_true
+        end
+        
         describe '.arity_for_event' do
           it 'reports the arity requirement for the event, if any' do
             Emitter.emits(:jigger, arity: 5)
@@ -210,6 +216,10 @@ describe Eventually do
     it_behaves_like 'emitting an event', :method
     it_behaves_like 'emitting an event', :proc
     
+    it 'emits nothing when no event callbacks are given' do
+      expect { emitter.__send__(:emit, :hullabaloo) }.should_not raise_error
+    end
+    
     it 'raises an error when a given callback is invalid' do
       expect { emitter.on(:start, nil, &nil)  }.should raise_error(/Cannot register callback/)
       expect { emitter.on(:start, 10_000)     }.should raise_error(/Cannot register callback/)
@@ -234,8 +244,8 @@ describe Eventually do
     end
     
     context 'when arity validation is enabled' do
+      before { Emitter.emits(:hello_world, arity: 2) }
       it 'accepts a callback with matching arity' do
-        Emitter.emits(:hello_world, arity: 2)
         expect {
           emitter.on(:hello_world) do |param1, param2|
             #not invoked
@@ -244,12 +254,23 @@ describe Eventually do
       end
       
       it 'rejects a callback if the given arity is not exact' do
-        Emitter.emits(:hello_world, arity: 2)
         expect {
           emitter.on(:hello_world) do |param1, param2, param3|
             #not invoked
           end
         }.should raise_error(/Invalid callback arity for event :hello_world \(expected 2, received 3\)/)
+      end
+      
+      it 'accepts emitting an event when arity is valid' do
+        expect {
+          emitter.__send__(:emit, :hello_world, "hello", "world")
+        }.should_not raise_error
+      end
+      
+      it 'rejects emitting an event when the arity is not exact' do
+        expect {
+          emitter.__send__(:emit, :hello_world, "hello")
+        }.should raise_error(/Invalid emit arity for event :hello_world \(expected 2, received 1\)/)
       end
     end
     
