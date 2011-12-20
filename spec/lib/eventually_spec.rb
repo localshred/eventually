@@ -265,5 +265,40 @@ describe Eventually do
         end
       end
     end
+    
+    describe '#valid_event_arity?' do
+      context 'when arity is validated for event' do
+        context 'and the arity matches' do
+          it 'doesn\'t raise an error' do
+            Emitter.emits(:jump, arity: 2)
+            expect {
+              emitter.on(:jump) do |param1, param2|
+                puts 'hi'
+              end
+            }.should_not raise_error
+          end
+        end
+        context 'and the arity does not match' do
+          it 'raises an error' do
+            Emitter.emits(:jump, arity: 2)
+            expect {
+              emitter.on(:jump) do |param1|
+                puts 'hi'
+              end
+            }.should raise_error(/expected 2, received 1/)
+          end
+        end
+      end
+      context 'when arity is not for event' do
+        it 'doesn\'t raise an error' do
+          Emitter.emits?(:jump).should be_false
+          expect {
+            emitter.on(:jump) do |param1, param2|
+              puts 'hi'
+            end
+          }.should_not raise_error
+        end
+      end
+    end
   end
 end

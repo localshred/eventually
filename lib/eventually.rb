@@ -73,8 +73,9 @@ module Eventually
       raise 'Cannot register callback. Neither callable nor block was given'
     end
     
-    if self.class.validates_arity?(event) && cbk.arity != (expected_arity = self.class.arity_for_event(event))
-      raise "Invalid callback arity for event :#{event} (expected #{expected_arity}, received #{cbk.arity})"
+    # if self.class.validates_arity?(event) && cbk.arity != (expected_arity = self.class.arity_for_event(event))
+    unless valid_event_arity?(event, cbk)
+      raise "Invalid callback arity for event :#{event} (expected #{self.class.arity_for_event(event)}, received #{cbk.arity})"
     end
     
     (__registered__[event.to_sym] ||= []) << cbk
@@ -86,6 +87,11 @@ module Eventually
     __registered__[event.to_sym].each do |cbk|
       cbk.call(*payload)
     end
+  end
+  
+  def valid_event_arity?(event, cbk)
+    expected_arity = self.class.arity_for_event(event)
+    !self.class.validates_arity?(event) || cbk.arity == expected_arity
   end
   
   private
