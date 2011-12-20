@@ -50,6 +50,10 @@ module Eventually
       nil
     end
     
+    def can_emit_or_register?(event)
+      !strict? || emits?(event)
+    end
+    
     private
     
     def emittable
@@ -58,9 +62,7 @@ module Eventually
   end
   
   def on(event, callable=nil, &blk)
-    if self.class.strict? && !self.class.emits?(event)
-      raise "Event type :#{event} will not be emitted. Use #{self.class.name}.emits(:#{event})"
-    end
+    raise "Event type :#{event} will not be emitted. Use #{self.class.name}.emits(:#{event})" unless self.class.can_emit_or_register?(event)
     
     cbk = nil
     if callable.respond_to?(:call)
@@ -79,6 +81,8 @@ module Eventually
   end
   
   def emit(event, *payload)
+    raise "Event type :#{event} cannot be emitted. Use #{self.class.name}.emits(:#{event})" unless self.class.can_emit_or_register?(event)
+    
     __registered__[event.to_sym].each do |cbk|
       cbk.call(*payload)
     end

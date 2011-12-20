@@ -121,6 +121,42 @@ describe Eventually do
       emitter.on(:start) { puts 'hello' }
       emitter.on(:start) { puts 'world' }
     end
+    
+    describe '.can_emit_or_register?' do
+      context 'when strict mode enabled' do
+        before { Emitter.enable_strict! }
+        context 'when given event is registered' do
+          it 'returns true' do
+            Emitter.emits(:known)
+            Emitter.emits?(:known).should be_true
+            Emitter.can_emit_or_register?(:known).should be_true
+          end
+        end
+        context 'when given event is not registered' do
+          it 'returns false' do
+            Emitter.emits?(:unknown).should be_false
+            Emitter.can_emit_or_register?(:unknown).should be_false
+          end
+        end
+      end
+      
+      context 'when strict mode disabled' do
+        before { Emitter.disable_strict! }
+        context 'when given event is registered' do
+          it 'returns true' do
+            Emitter.emits(:known)
+            Emitter.emits?(:known).should be_true
+            Emitter.can_emit_or_register?(:known).should be_true
+          end
+        end
+        context 'when given event is not registered' do
+          it 'returns true' do
+            Emitter.emits?(:unknown).should be_false
+            Emitter.can_emit_or_register?(:unknown).should be_true
+          end
+        end
+      end
+    end
   end
   
   context 'when emitting events' do    
@@ -214,6 +250,19 @@ describe Eventually do
             #not invoked
           end
         }.should raise_error(/Invalid callback arity for event :hello_world \(expected 2, received 3\)/)
+      end
+    end
+    
+    context 'when strict mode is enabled' do
+      context 'when emitting an event not previously defined' do
+        it 'raises an error concerning the unknown event type' do
+          emitter.class.enable_strict!
+          emitter.class.strict?.should be_true
+          emitter.class.emits?(:stop).should be_false
+          expect {
+            emitter.__send__(:emit, :stop)
+          }.should raise_error(/Event type :stop cannot be emitted/)
+        end
       end
     end
   end
