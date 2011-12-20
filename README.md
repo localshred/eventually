@@ -25,8 +25,8 @@ For documentation purposes, it can often be nice to define up front what events 
 ```ruby
 class Car
   include Eventually
-	emits :stopped, :started, :turning
-	emits :reversing
+  emits :stopped, :started, :turning
+  emits :reversing
 end
 ```
 
@@ -41,7 +41,7 @@ However, sometimes you want to be sure that a given registered callback will con
 ```ruby
 class Car
   include Eventually
-	emits :driving, :arity => 1
+  emits :driving, :arity => 1
 end
 car = Car.new
 car.on(:driving) do
