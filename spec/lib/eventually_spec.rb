@@ -5,7 +5,10 @@ class Emitter
 end
 
 describe Eventually do
-  before(:each) { Emitter.emits_none }
+  before(:each) do
+    Emitter.disable_strict!
+    Emitter.emits_none
+  end
   
   let(:emitter) { Emitter.new }
   let(:defined_events) { [:one, :two, :three] }
@@ -25,30 +28,73 @@ describe Eventually do
         Emitter.emits(:jigger)
         Emitter.emits?(:jigger).should be_true
       end
+      
       it 'can register multiple event symbols at once' do
         Emitter.emits(*defined_events)
         defined_events.each {|e| Emitter.emits?(e).should be_true }
       end
+      
       it 'provides a list of pre-defined emittable events' do
         Emitter.emits(*defined_events)
         Emitter.emits.should eq defined_events
       end
+      
+      describe '.enable_strict!' do
+        it 'requires the event to have been pre-defined for watchers to register callbacks to it' do
+          Emitter.enable_strict!
+          Emitter.emits(:start)
+          Emitter.emits?(:start).should be_true
+          expect {
+            emitter.on(:start, lambda{ puts 'hi' })
+          }.should_not raise_error
+          expect {
+            emitter.on(:stop, lambda{ puts 'hi' })
+          }.should raise_error(/Event type :stop will not be emitted/)
+        end  
+      end
+      
+      describe '.disable_strict!' do
+        it 'disables strict mode' do
+          Emitter.disable_strict!
+          Emitter.emits?(:start).should be_false
+          expect {
+            emitter.on(:start, lambda{ puts 'hi' })
+          }.should_not raise_error
+        end
+      end
+      
+      describe '.strict?' do
+        context 'when strict mode is enabled' do
+          it 'returns true' do
+            Emitter.enable_strict!
+            Emitter.strict?.should be_true
+          end
+        end
+        
+        context 'when strict mode is disabled' do
+          it 'returns false' do
+            Emitter.disable_strict!
+            Emitter.strict?.should be_false
+          end
+        end
+      end
+      
       context 'when providing an arity validation' do
         it 'sets an arity expectation for future event callbacks' do
           Emitter.emits(:jigger, arity: 5)
           Emitter.emits?(:jigger)
           Emitter.validates_arity?(:jigger).should be_true
         end
-      end
-    end
-    
-    context '.arity_for_event' do
-      it 'reports the arity requirement for the event, if any' do
-        Emitter.emits(:jigger, arity: 5)
-        Emitter.arity_for_event(:jigger).should eq 5
-        Emitter.emits(:pingpong)
-        Emitter.arity_for_event(:pingpong).should eq -1        
-        Emitter.arity_for_event(:nonevent).should eq nil
+        
+        describe '.arity_for_event' do
+          it 'reports the arity requirement for the event, if any' do
+            Emitter.emits(:jigger, arity: 5)
+            Emitter.arity_for_event(:jigger).should eq 5
+            Emitter.emits(:pingpong)
+            Emitter.arity_for_event(:pingpong).should eq -1        
+            Emitter.arity_for_event(:nonevent).should eq nil
+          end
+        end
       end
     end
     

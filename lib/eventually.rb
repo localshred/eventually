@@ -9,6 +9,18 @@ module Eventually
     NO_CHECK_ARITY = -1
     attr_accessor :emittable_events
     
+    def enable_strict!
+      @strict = true
+    end
+    
+    def disable_strict!
+      @strict = false
+    end
+    
+    def strict?
+      @strict || false
+    end
+    
     def emits(*evts)
       if evts && !evts.empty?
         if evts.all?{|e| e.is_a?(Symbol) }
@@ -46,6 +58,10 @@ module Eventually
   end
   
   def on(event, callable=nil, &blk)
+    if self.class.strict? && !self.class.emits?(event)
+      raise "Event type :#{event} will not be emitted. Use #{self.class.name}.emits(:#{event})"
+    end
+    
     cbk = nil
     if callable.respond_to?(:call)
       cbk = callable
