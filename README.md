@@ -36,7 +36,7 @@ The previous snippet acts mostly as documentation.
 
 ## Callback arity validation
 
-However, sometimes you want to be sure that a given registered callback will conform to your event interface, so specify an **arity validation**. Let's add another event to our definition and ensure that callbacks registering for that event must have an arity of 1.
+However, sometimes you want to be sure that a given registered callback will conform to your event interface, so specify an **arity validation**. Let's add another event to our definition and ensure that callbacks registering for that event must have an arity of 1. This will also raise an error if you attempt to emit an event with the wrong argument arity.
 
 ```ruby
 class Car
