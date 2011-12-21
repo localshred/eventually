@@ -50,10 +50,15 @@ module Eventually
       emittable.key?(evt.to_sym)
     end
     
+    # Return the maximum number of listeners before
+    # we'll start printing memory warnings.
+    # Default max is 10
     def max_listeners
       @max_listeners ||= DEFAULT_MAX_LISTENERS
     end
     
+    # Set the maximum listener number. Setting this max
+    # to 0 indicates unlimited listeners allowed.
     def max_listeners= max
       @max_listeners = max
     end
@@ -73,7 +78,7 @@ module Eventually
       @strict = false
     end
     
-    # Are we strict or not
+    # Report on strict mode
     def strict?
       @strict || false
     end
@@ -132,6 +137,8 @@ module Eventually
     cbk
   end
   
+  # Event registration method which will remove the given
+  # callback after it is invoked. See Eventually#on for registration details.
   def once(event, callable=nil, &blk)
     cbk = on(event, callable, &blk)
     (__onceable__[event.to_sym] ||= {})[cbk.object_id] = true
@@ -170,18 +177,22 @@ module Eventually
     __onceable__[event.to_sym] = Hash.new
   end
   
+  # Report the number of registered listeners for the given event
   def listeners(event)
     __registered__[event.to_sym]
   end
   
+  # Remove the given listener callback from the given event callback list
   def remove_listener(event, cbk)
     listeners(event).delete_if{|reg_cbk| reg_cbk == cbk }
   end
   
+  # Remove all listener callbacks for the given event
   def remove_all_listeners(event)
     __registered__[event.to_sym] = []
   end
   
+  # Helper method to pick the right callback parameter (used internally).
   def pick_callback(callable, blk)
     cbk = nil
     if callable.respond_to?(:call)
