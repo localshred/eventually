@@ -11,10 +11,13 @@ require "eventually/version"
 module Eventually
   def self.included(base)
     base.extend(ClassMethods)
+    base.emits(:listener_added, :arity => 1)
   end
   
   module ClassMethods
     NO_CHECK_ARITY = -1
+    DEFAULT_MAX_LISTENERS = 10
+    
     attr_accessor :emittable_events
     
     # Define an event or list of events
@@ -45,6 +48,14 @@ module Eventually
     # the given event as potentially emittable
     def emits?(evt)
       emittable.key?(evt.to_sym)
+    end
+    
+    def max_listeners
+      @max_listeners ||= DEFAULT_MAX_LISTENERS
+    end
+    
+    def max_listeners= max
+      @max_listeners = max
     end
     
     # Puts instances into strict mode. This does two things:
@@ -105,21 +116,25 @@ module Eventually
   def on(event, callable=nil, &blk)
     raise "Event type :#{event} will not be emitted. Use #{self.class.name}.emits(:#{event})" unless self.class.can_emit_or_register?(event)
     
-    cbk = nil
-    if callable.respond_to?(:call)
-      cbk = callable
-    elsif block_given? && !blk.nil?
-      cbk = blk
-    else
-      raise 'Cannot register callback. Neither callable nor block was given'
-    end
+    cbk = pick_callback(callable, blk)
     
-    # if self.class.validates_arity?(event) && cbk.arity != (expected_arity = self.class.arity_for_event(event))
     unless valid_event_arity?(event, cbk.arity)
       raise "Invalid callback arity for event :#{event} (expected #{self.class.arity_for_event(event)}, received #{cbk.arity})"
     end
     
     (__registered__[event.to_sym] ||= []) << cbk
+    emit(:listener_added, cbk)
+    
+    if self.class.max_listeners > 0 && __registered__[event.to_sym].count > self.class.max_listeners
+      puts 'Event emitter has registered more than 10 listeners. This may be a memory leak situation.'
+    end
+    
+    cbk
+  end
+  
+  def once(event, callable=nil, &blk)
+    cbk = on(event, callable, &blk)
+    (__onceable__[event.to_sym] ||= {})[cbk.object_id] = true
   end
   
   # Emit the payload arguments back to the registered listeners
@@ -148,9 +163,35 @@ module Eventually
       raise "Invalid emit arity for event :#{event} (expected #{self.class.arity_for_event(event)}, received #{payload.length})"
     end
     
-    (__registered__[event.to_sym] || []).each do |cbk|
+    (listeners(event) || []).each do |cbk|
       cbk.call(*payload)
+      listeners(event).delete_if{|cbk| __onceable__.fetch(event.to_sym){Hash.new}.key?(cbk.object_id) }
     end
+    __onceable__[event.to_sym] = Hash.new
+  end
+  
+  def listeners(event)
+    __registered__[event.to_sym]
+  end
+  
+  def remove_listener(event, cbk)
+    listeners(event).delete_if{|reg_cbk| reg_cbk == cbk }
+  end
+  
+  def remove_all_listeners(event)
+    __registered__[event.to_sym] = []
+  end
+  
+  def pick_callback(callable, blk)
+    cbk = nil
+    if callable.respond_to?(:call)
+      cbk = callable
+    elsif blk && !blk.nil?
+      cbk = blk
+    else
+      raise 'Cannot register callback. Neither callable nor block was given'
+    end
+    cbk
   end
   
   # Shorthand predicate to determine if the given cbk for this event
@@ -164,6 +205,10 @@ module Eventually
   
   def __registered__
     @__registered__ ||= {}
+  end
+  
+  def __onceable__
+    @__onceable__ ||= {}
   end
   
 end

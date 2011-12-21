@@ -8,12 +8,27 @@ describe Eventually do
   before(:each) do
     Emitter.disable_strict!
     Emitter.emits_none
+    Emitter.emits(:listener_added, :arity => 1)
+    Emitter.max_listeners = 10
   end
   
   let(:emitter) { Emitter.new }
   let(:defined_events) { [:one, :two, :three] }
   
   context 'external api' do
+    describe '.max_listeners' do
+      it 'returns the number of listeners allowed before memory warnings are printed' do
+        Emitter.max_listeners.should eq 10
+      end
+    end
+    
+    describe '.max_listeners=' do
+      it 'sets the max number of listeners to allow before printing memory warnings' do
+        Emitter.max_listeners = 20
+        Emitter.max_listeners.should eq 20
+      end
+    end
+    
     describe '.emits_none' do
       it 'clears out emitter definitions' do
         Emitter.emits(:jigger)
@@ -36,7 +51,7 @@ describe Eventually do
       
       it 'provides a list of pre-defined emittable events' do
         Emitter.emits(*defined_events)
-        Emitter.emits.should eq defined_events
+        Emitter.emits.should eq [:listener_added, defined_events].flatten
       end
       
       describe '.enable_strict!' do
@@ -216,6 +231,16 @@ describe Eventually do
     it_behaves_like 'emitting an event', :method
     it_behaves_like 'emitting an event', :proc
     
+    it 'emits an event on the emitter when a new listener is added' do
+      callback_to_add = lambda{ puts 'hi' }
+      listener_id = nil
+      emitter.on(:listener_added) do |listener|
+        listener_id = listener.object_id
+      end
+      emitter.on(:some_event, callback_to_add)
+      listener_id.should eq callback_to_add.object_id
+    end
+    
     it 'emits nothing when no event callbacks are given' do
       expect { emitter.__send__(:emit, :hullabaloo) }.should_not raise_error
     end
@@ -321,5 +346,84 @@ describe Eventually do
         end
       end
     end
+    
+    describe '#once' do
+      it 'registers to an event for one time only, then releases the registration' do
+        value = 1
+        emitter.once(:start) do
+          value += 1
+        end
+        emitter.__send__(:emit, :start)
+        emitter.__send__(:emit, :start)
+        value.should eq 2
+        emitter.__send__(:__onceable__)[:start].should eq Hash.new
+      end
+    end
+    
+    describe '#remove_listener' do
+      it 'removes a given event callback' do
+        value = 1
+        cbk = lambda{ value += 1 }
+        emitter.on(:some_event, cbk)
+        emitter.__send__(:emit, :some_event)
+        value.should eq 2
+        emitter.remove_listener(:some_event, cbk)
+        emitter.__send__(:emit, :some_event)
+        value.should eq 2
+      end
+    end
+    
+    describe '#remove_all_listeners' do
+      it 'removes all listeners for the given event' do
+        value = 1
+        emitter.on(:some_event) do
+          value += 1
+        end
+        emitter.on(:some_event) do
+          value += 5
+        end
+        emitter.on(:some_event) do
+          value += 10
+        end
+        emitter.__send__(:emit, :some_event)
+        value.should eq 17
+        
+        emitter.remove_all_listeners(:some_event)
+        emitter.__send__(:emit, :some_event)
+        value.should eq 17
+      end
+    end
+    
+    describe '#listeners' do
+      it 'returns a list of listener callbacks for the given event' do
+        cb1 = lambda{}
+        cb2 = lambda{}
+        cb3 = lambda{}
+        emitter.on(:some_event, cb1)
+        emitter.on(:some_event, cb2)
+        emitter.on(:some_event, cb3)
+        emitter.listeners(:some_event).should eq [cb1, cb2, cb3]
+      end
+    end
+    
+    context 'when detecting potential memory leaks' do
+      it 'writes a warning to stdout when > 10 listeners are added' do
+        $stdout.should_receive(:puts).once.with('Event emitter has registered more than 10 listeners. This may be a memory leak situation.')
+        (emitter.class.max_listeners+1).times do
+          emitter.on(:some_event, lambda{})
+        end
+      end
+      
+      it 'will not print a warning if max_listeners is set to 0' do
+        emitter.class.max_listeners = 0
+        $stdout.should_not_receive(:puts).with('Event emitter has registered more than 10 listeners. This may be a memory leak situation.')
+        1000.times do
+          emitter.on(:some_event, lambda{})
+        end
+      end
+    end
+    
+    
+    
   end
 end
