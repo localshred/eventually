@@ -112,7 +112,7 @@ describe Eventually do
             Emitter.emits(:jigger, arity: 5)
             Emitter.arity_for_event(:jigger).should eq 5
             Emitter.emits(:pingpong)
-            Emitter.arity_for_event(:pingpong).should eq -1        
+            Emitter.arity_for_event(:pingpong).should eq -2        
             Emitter.arity_for_event(:nonevent).should eq nil
           end
         end
@@ -143,20 +143,20 @@ describe Eventually do
       emitter.on(:start) { puts 'world' }
     end
     
-    describe '.can_emit_or_register?' do
+    describe '.emittable?' do
       context 'when strict mode enabled' do
         before { Emitter.enable_strict! }
         context 'when given event is registered' do
           it 'returns true' do
             Emitter.emits(:known)
             Emitter.emits?(:known).should be_true
-            Emitter.can_emit_or_register?(:known).should be_true
+            Emitter.emittable?(:known).should be_true
           end
         end
         context 'when given event is not registered' do
           it 'returns false' do
             Emitter.emits?(:unknown).should be_false
-            Emitter.can_emit_or_register?(:unknown).should be_false
+            Emitter.emittable?(:unknown).should be_false
           end
         end
       end
@@ -167,13 +167,13 @@ describe Eventually do
           it 'returns true' do
             Emitter.emits(:known)
             Emitter.emits?(:known).should be_true
-            Emitter.can_emit_or_register?(:known).should be_true
+            Emitter.emittable?(:known).should be_true
           end
         end
         context 'when given event is not registered' do
           it 'returns true' do
             Emitter.emits?(:unknown).should be_false
-            Emitter.can_emit_or_register?(:unknown).should be_true
+            Emitter.emittable?(:unknown).should be_true
           end
         end
       end
@@ -423,7 +423,14 @@ describe Eventually do
       end
     end
     
-    
+    describe '#num_listeners' do
+      it 'counts all listeners across all events' do
+        emitter.on(:event1, lambda{})
+        emitter.on(:event2, lambda{})
+        emitter.on(:event3, lambda{})
+        emitter.num_listeners.should eq 3
+      end
+    end
     
   end
 end

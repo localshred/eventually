@@ -1,4 +1,8 @@
-require "eventually/version"
+require 'eventually/version'
+require 'eventually/event'
+require 'eventually/callable'
+require 'eventually/validation/arity'
+require 'eventually/validation/max_listeners'
 
 # Eventually is a module that facilitates evented callback
 # management similar to the EventEmitter API in NodeJS.
@@ -15,7 +19,7 @@ module Eventually
   end
   
   module ClassMethods
-    NO_CHECK_ARITY = -1
+    NO_CHECK_ARITY = -2
     DEFAULT_MAX_LISTENERS = 10
     
     attr_accessor :emittable_events
@@ -102,9 +106,10 @@ module Eventually
     
     # Shorthand predicate to determine if a given event is 
     # "emittable" or "registerable"
-    def can_emit_or_register?(event)
+    def emittable?(event)
       !strict? || emits?(event)
     end
+    alias :registerable? :emittable?
     
     private
     
@@ -118,30 +123,39 @@ module Eventually
   # 
   # Usage: see Eventually#emit or examples directory
   #
-  def on(event, callable=nil, &blk)
-    raise "Event type :#{event} will not be emitted. Use #{self.class.name}.emits(:#{event})" unless self.class.can_emit_or_register?(event)
+  def on(evt_name, callable=nil, &blk)
+    evt_name = evt_name.to_sym unless evt_name.is_a?(Symbol)
     
-    cbk = pick_callback(callable, blk)
+    cb = Eventually::Callable.new(callable, blk)
+    cb.validate_arity_or_raise(evt_name, self)
     
-    unless valid_event_arity?(event, cbk.arity)
-      raise "Invalid callback arity for event :#{event} (expected #{self.class.arity_for_event(event)}, received #{cbk.arity})"
-    end
+    event = get_event(evt_name)
+    event.add_callable(cb)
+    emit(:listener_added, cb)
     
-    (__registered__[event.to_sym] ||= []) << cbk
-    emit(:listener_added, cbk)
-    
-    if self.class.max_listeners > 0 && __registered__[event.to_sym].count > self.class.max_listeners
-      puts 'Event emitter has registered more than 10 listeners. This may be a memory leak situation.'
-    end
-    
-    cbk
+    Eventually::Validation::MaxListeners.new(self).warn_unless_valid!
+    [event, cb]
   end
   
   # Event registration method which will remove the given
   # callback after it is invoked. See Eventually#on for registration details.
   def once(event, callable=nil, &blk)
-    cbk = on(event, callable, &blk)
-    (__onceable__[event.to_sym] ||= {})[cbk.object_id] = true
+    event, cb = on(event, callable, &blk)
+    cb.availability = :once
+    [event, cb]
+  end
+  
+  def get_event(event)
+    evt = _events[event]
+    unless evt
+      evt = Eventually::Event.new(event, self.class.registerable?(event))
+      _events[event] = evt
+    end
+    evt
+  end
+  
+  def num_listeners
+    _events.values.inject(0){|acc, evt| acc + evt.listeners.size}
   end
   
   # Emit the payload arguments back to the registered listeners
@@ -163,23 +177,16 @@ module Eventually
   #   end
   #   car.stop # this will indirectly invoke the above callback
   #
-  def emit(event, *payload)
-    raise "Event type :#{event} cannot be emitted. Use #{self.class.name}.emits(:#{event})" unless self.class.can_emit_or_register?(event)
-    
-    unless valid_event_arity?(event, payload.length)
-      raise "Invalid emit arity for event :#{event} (expected #{self.class.arity_for_event(event)}, received #{payload.length})"
-    end
-    
-    (listeners(event) || []).each do |cbk|
-      cbk.call(*payload)
-      listeners(event).delete_if{|cbk| __onceable__.fetch(event.to_sym){Hash.new}.key?(cbk.object_id) }
-    end
-    __onceable__[event.to_sym] = Hash.new
+  def emit(evt_name, *payload)
+    evt_name = evt_name.to_sym unless evt_name.is_a?(Symbol)
+    event = get_event(evt_name)
+    Eventually::Validation::Arity.new(evt_name, self, payload.length).raise_unless_valid!
+    event.emit(*payload)
   end
   
   # Report the number of registered listeners for the given event
   def listeners(event)
-    __registered__[event.to_sym]
+    _events[event.to_sym]
   end
   
   # Remove the given listener callback from the given event callback list
@@ -189,37 +196,13 @@ module Eventually
   
   # Remove all listener callbacks for the given event
   def remove_all_listeners(event)
-    __registered__[event.to_sym] = []
-  end
-  
-  # Helper method to pick the right callback parameter (used internally).
-  def pick_callback(callable, blk)
-    cbk = nil
-    if callable.respond_to?(:call)
-      cbk = callable
-    elsif blk && !blk.nil?
-      cbk = blk
-    else
-      raise 'Cannot register callback. Neither callable nor block was given'
-    end
-    cbk
-  end
-  
-  # Shorthand predicate to determine if the given cbk for this event
-  # has a valid arity amount
-  def valid_event_arity?(event, arity_count)
-    expected_arity = self.class.arity_for_event(event)
-    !self.class.validates_arity?(event) || arity_count == expected_arity
+    _events[event.to_sym] = []
   end
   
   private
   
-  def __registered__
-    @__registered__ ||= {}
-  end
-  
-  def __onceable__
-    @__onceable__ ||= {}
+  def _events
+    @_events ||= {}
   end
   
 end
