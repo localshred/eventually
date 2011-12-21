@@ -119,25 +119,6 @@ describe Eventually do
       end
     end
     
-    it 'allows event registration with lambda' do
-      emitter.on(:start, lambda{ puts 'hi' })
-    end
-    
-    it 'allows event registration with proc' do
-      emitter.on(:start, proc{ puts 'hi' })
-    end
-    
-    it 'allows event registration with block' do
-      emitter.on(:start) do
-        puts 'hi'
-      end
-    end
-    
-    it 'allows event registration with detached method' do
-      def event_handler; end
-      emitter.on(:start, method(:event_handler))
-    end
-    
     it 'allows multiple registrations for a given event' do
       emitter.on(:start) { puts 'hello' }
       emitter.on(:start) { puts 'world' }
@@ -180,7 +161,51 @@ describe Eventually do
     end
   end
   
-  context 'when emitting events' do    
+  describe '#on' do
+    it 'raises an error when a given callback is invalid' do
+      expect { emitter.on(:start, nil, &nil)  }.should raise_error(/Cannot register callable/)
+      expect { emitter.on(:start, 10_000)     }.should raise_error(/Cannot register callable/)
+      expect { emitter.on(:start, "callback") }.should raise_error(/Cannot register callable/)
+    end
+    
+    context 'when arity validation is enabled' do
+      before { Emitter.emits(:hello_world, arity: 2) }
+      it 'accepts a callback with matching arity' do
+        expect {
+          emitter.on(:hello_world) do |param1, param2|
+            # callback will not be invoked
+          end
+        }.should_not raise_error
+      end
+      
+      it 'rejects a callback if the given arity is not exact' do
+        expect {
+          emitter.on(:hello_world) do |param1, param2, param3|
+            # callback will not be invoked
+          end
+        }.should raise_error(/Arity validation failed for event :hello_world \(expected 2, received 3\)/)
+      end
+    end
+    
+    context 'when detecting potential memory leaks' do
+      it 'writes a warning to stdout when > 10 listeners are added' do
+        $stdout.should_receive(:puts).once.with('Warning: Emitter has more than 10 registered listeners.')
+        (emitter.class.max_listeners+1).times do
+          emitter.on(:some_event, lambda{})
+        end
+      end
+
+      it 'will not print a warning if max_listeners is set to 0' do
+        emitter.class.max_listeners = 0
+        $stdout.should_not_receive(:puts).with('Warning: Emitter has more than 10 registered listeners.')
+        1000.times do
+          emitter.on(:some_event, lambda{})
+        end
+      end
+    end
+  end
+  
+  describe '#emit' do    
     let(:emitter) { Emitter.new }
     let(:watcher) { Watcher.new }
     
@@ -201,7 +226,6 @@ describe Eventually do
       def proc_callback
         proc{|payload| @value += payload }
       end
-      
       def update_method(payload)
         @value += payload
       end
@@ -235,7 +259,7 @@ describe Eventually do
       callback_to_add = lambda{ puts 'hi' }
       listener_id = nil
       emitter.on(:listener_added) do |listener|
-        listener_id = listener.object_id
+        listener_id = listener.callable.object_id
       end
       emitter.on(:some_event, callback_to_add)
       listener_id.should eq callback_to_add.object_id
@@ -243,12 +267,6 @@ describe Eventually do
     
     it 'emits nothing when no event callbacks are given' do
       expect { emitter.__send__(:emit, :hullabaloo) }.should_not raise_error
-    end
-    
-    it 'raises an error when a given callback is invalid' do
-      expect { emitter.on(:start, nil, &nil)  }.should raise_error(/Cannot register callback/)
-      expect { emitter.on(:start, 10_000)     }.should raise_error(/Cannot register callback/)
-      expect { emitter.on(:start, "callback") }.should raise_error(/Cannot register callback/)
     end
     
     it 'invokes registered callbacks in a FIFO manner' do
@@ -269,33 +287,18 @@ describe Eventually do
     end
     
     context 'when arity validation is enabled' do
-      before { Emitter.emits(:hello_world, arity: 2) }
-      it 'accepts a callback with matching arity' do
-        expect {
-          emitter.on(:hello_world) do |param1, param2|
-            #not invoked
-          end
-        }.should_not raise_error
-      end
-      
-      it 'rejects a callback if the given arity is not exact' do
-        expect {
-          emitter.on(:hello_world) do |param1, param2, param3|
-            #not invoked
-          end
-        }.should raise_error(/Invalid callback arity for event :hello_world \(expected 2, received 3\)/)
-      end
-      
-      it 'accepts emitting an event when arity is valid' do
+      it 'emits the event when arity is valid' do
+        emitter.class.emits(:hello_world, arity: 2)
         expect {
           emitter.__send__(:emit, :hello_world, "hello", "world")
         }.should_not raise_error
       end
       
       it 'rejects emitting an event when the arity is not exact' do
+        emitter.class.emits(:hello_world, arity: 2)
         expect {
           emitter.__send__(:emit, :hello_world, "hello")
-        }.should raise_error(/Invalid emit arity for event :hello_world \(expected 2, received 1\)/)
+        }.should raise_error(/Arity validation failed for event :hello_world \(expected 2, received 1\)/)
       end
     end
     
@@ -311,126 +314,76 @@ describe Eventually do
         end
       end
     end
-    
-    describe '#valid_event_arity?' do
-      context 'when arity is validated for event' do
-        context 'and the arity matches' do
-          it 'doesn\'t raise an error' do
-            Emitter.emits(:jump, arity: 2)
-            expect {
-              emitter.on(:jump) do |param1, param2|
-                puts 'hi'
-              end
-            }.should_not raise_error
-          end
-        end
-        context 'and the arity does not match' do
-          it 'raises an error' do
-            Emitter.emits(:jump, arity: 2)
-            expect {
-              emitter.on(:jump) do |param1|
-                puts 'hi'
-              end
-            }.should raise_error(/expected 2, received 1/)
-          end
-        end
-      end
-      context 'when arity is not for event' do
-        it 'doesn\'t raise an error' do
-          Emitter.emits?(:jump).should be_false
-          expect {
-            emitter.on(:jump) do |param1, param2|
-              puts 'hi'
-            end
-          }.should_not raise_error
-        end
-      end
-    end
-    
-    describe '#once' do
-      it 'registers to an event for one time only, then releases the registration' do
-        value = 1
-        emitter.once(:start) do
-          value += 1
-        end
-        emitter.__send__(:emit, :start)
-        emitter.__send__(:emit, :start)
-        value.should eq 2
-        emitter.__send__(:__onceable__)[:start].should eq Hash.new
-      end
-    end
-    
-    describe '#remove_listener' do
-      it 'removes a given event callback' do
-        value = 1
-        cbk = lambda{ value += 1 }
-        emitter.on(:some_event, cbk)
-        emitter.__send__(:emit, :some_event)
-        value.should eq 2
-        emitter.remove_listener(:some_event, cbk)
-        emitter.__send__(:emit, :some_event)
-        value.should eq 2
-      end
-    end
-    
-    describe '#remove_all_listeners' do
-      it 'removes all listeners for the given event' do
-        value = 1
-        emitter.on(:some_event) do
-          value += 1
-        end
-        emitter.on(:some_event) do
-          value += 5
-        end
-        emitter.on(:some_event) do
-          value += 10
-        end
-        emitter.__send__(:emit, :some_event)
-        value.should eq 17
-        
-        emitter.remove_all_listeners(:some_event)
-        emitter.__send__(:emit, :some_event)
-        value.should eq 17
-      end
-    end
-    
-    describe '#listeners' do
-      it 'returns a list of listener callbacks for the given event' do
-        cb1 = lambda{}
-        cb2 = lambda{}
-        cb3 = lambda{}
-        emitter.on(:some_event, cb1)
-        emitter.on(:some_event, cb2)
-        emitter.on(:some_event, cb3)
-        emitter.listeners(:some_event).should eq [cb1, cb2, cb3]
-      end
-    end
-    
-    context 'when detecting potential memory leaks' do
-      it 'writes a warning to stdout when > 10 listeners are added' do
-        $stdout.should_receive(:puts).once.with('Event emitter has registered more than 10 listeners. This may be a memory leak situation.')
-        (emitter.class.max_listeners+1).times do
-          emitter.on(:some_event, lambda{})
-        end
-      end
-      
-      it 'will not print a warning if max_listeners is set to 0' do
-        emitter.class.max_listeners = 0
-        $stdout.should_not_receive(:puts).with('Event emitter has registered more than 10 listeners. This may be a memory leak situation.')
-        1000.times do
-          emitter.on(:some_event, lambda{})
-        end
-      end
-    end
-    
-    describe '#num_listeners' do
-      it 'counts all listeners across all events' do
-        emitter.on(:event1, lambda{})
-        emitter.on(:event2, lambda{})
-        emitter.on(:event3, lambda{})
-        emitter.num_listeners.should eq 3
-      end
-    end
-    
   end
+  
+  describe '#once' do
+    it 'registers to an event for one time only, then releases the registration' do
+      value = 1
+      emitter.once(:start) do
+        value += 1
+      end
+      listener_count = emitter.num_listeners
+      
+      emitter.__send__(:emit, :start)
+      emitter.__send__(:emit, :start)
+      value.should eq 2
+      emitter.num_listeners.should eq(listener_count - 1)
+    end
+  end
+  
+  describe '#remove_listener' do
+    it 'removes a given event callback' do
+      value = 1
+      cbk = lambda{ value += 1 }
+      emitter.on(:some_event, cbk)
+      emitter.__send__(:emit, :some_event)
+      value.should eq 2
+      emitter.remove_listener(:some_event, cbk)
+      emitter.__send__(:emit, :some_event)
+      value.should eq 2
+    end
+  end
+  
+  describe '#remove_all_listeners' do
+    it 'removes all listeners for the given event' do
+      value = 1
+      emitter.on(:some_event) do
+        value += 1
+      end
+      emitter.on(:some_event) do
+        value += 5
+      end
+      emitter.on(:some_event) do
+        value += 10
+      end
+      emitter.__send__(:emit, :some_event)
+      value.should eq 17
+      
+      emitter.remove_all_listeners(:some_event)
+      emitter.__send__(:emit, :some_event)
+      value.should eq 17
+    end
+  end
+  
+  describe '#listeners' do
+    it 'returns a list of listener callbacks for the given event' do
+      cb1 = lambda{}
+      cb2 = lambda{}
+      cb3 = lambda{}
+      emitter.on(:some_event, cb1)
+      emitter.on(:some_event, cb2)
+      emitter.on(:some_event, cb3)
+      emitter.listeners(:some_event).should eq [cb1, cb2, cb3]
+    end
+  end
+  
+  describe '#num_listeners' do
+    it 'counts all listeners across all events' do
+      emitter.on(:event1, lambda{})
+      emitter.on(:event2, lambda{})
+      emitter.on(:event3, lambda{})
+      emitter.num_listeners.should eq 3
+    end
+  end
+  
 end

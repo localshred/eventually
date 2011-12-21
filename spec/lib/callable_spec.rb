@@ -56,29 +56,6 @@ describe Eventually::Callable do
     end
   end
   
-  describe '#validate_arity_or_raise' do
-    context 'when validation succeeds' do
-      it 'does not raise an arity validation error' do
-        validation = mock('arity validation', :valid? => true)
-        Eventually::Validation::Arity.should_receive(:new).and_return(validation)
-        expect {
-          rv = subject.validate_arity_or_raise(:evt_name, mock('emitter'))
-          rv.should eq true
-        }.should_not raise_error
-      end
-    end
-    
-    context 'when validation fails' do
-      it 'raises an arity validation error' do
-        validation = mock('arity validation', valid?: false, expected: 3, received: 1)
-        Eventually::Validation::Arity.should_receive(:new).and_return(validation)
-        expect {
-          subject.validate_arity_or_raise(:evt_name, mock('emitter'))
-        }.should raise_error(/Invalid callback arity for event :evt_name \(expected 3, received 1\)/)
-      end
-    end
-  end
-  
   context 'delegation' do
     it 'delegates :arity to callable' do
       subject.arity.should eq subject.callable.arity

@@ -3,23 +3,36 @@ require 'eventually/callable'
 
 module Eventually
   class Event
-    attr_reader :name, :listeners
+    attr_reader :name, :callables
     
     def initialize(name, emittable=true)
       @name = name.to_sym
       @emittable = !!emittable
-      @listeners = []
+      @callables = []
     end
     
     def add_callable(callable)
       raise "Event type :#{name} will not be emitted." unless emittable?
-      @listeners << callable if callable_valid?(callable)
+      @callables << callable if callable_valid?(callable)
+    end
+    
+    def remove_callable(callable_to_remove)
+      if callable_valid?(callable_to_remove)
+        delete_handler = proc{|callable| callable == callable_to_remove }
+      else
+        delete_handler = proc{|callable| callable.callable == callable_to_remove }
+      end
+      @callables.delete_if(&delete_handler)
+    end
+    
+    def remove_all_callables
+      @callables = []
     end
     
     def emit(*payload)
       raise "Event type :#{name} cannot be emitted." unless emittable?
-      @listeners.each {|callable| callable.call(*payload) }
-      @listeners.delete_if {|callable| !callable.continuous? }
+      @callables.each {|callable| callable.call(*payload) }
+      @callables.delete_if {|callable| !callable.continuous? }
     end
     
     def callable_valid?(callable)

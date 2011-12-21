@@ -127,7 +127,7 @@ module Eventually
     evt_name = evt_name.to_sym unless evt_name.is_a?(Symbol)
     
     cb = Eventually::Callable.new(callable, blk)
-    cb.validate_arity_or_raise(evt_name, self)
+    Eventually::Validation::Arity.new(evt_name, self, cb.arity).raise_unless_valid!
     
     event = get_event(evt_name)
     event.add_callable(cb)
@@ -143,19 +143,6 @@ module Eventually
     event, cb = on(event, callable, &blk)
     cb.availability = :once
     [event, cb]
-  end
-  
-  def get_event(event)
-    evt = _events[event]
-    unless evt
-      evt = Eventually::Event.new(event, self.class.registerable?(event))
-      _events[event] = evt
-    end
-    evt
-  end
-  
-  def num_listeners
-    _events.values.inject(0){|acc, evt| acc + evt.listeners.size}
   end
   
   # Emit the payload arguments back to the registered listeners
@@ -184,25 +171,39 @@ module Eventually
     event.emit(*payload)
   end
   
+  # Report the number of listeners across all registered events
+  def num_listeners
+    _events.values.inject(0){|acc, evt| acc + evt.callables.size}
+  end
+  
   # Report the number of registered listeners for the given event
   def listeners(event)
-    _events[event.to_sym]
+    get_event(event).callables.map(&:callable)
   end
   
   # Remove the given listener callback from the given event callback list
   def remove_listener(event, cbk)
-    listeners(event).delete_if{|reg_cbk| reg_cbk == cbk }
+    get_event(event).remove_callable(cbk)
   end
   
   # Remove all listener callbacks for the given event
   def remove_all_listeners(event)
-    _events[event.to_sym] = []
+    get_event(event).remove_all_callables
   end
   
   private
   
   def _events
     @_events ||= {}
+  end
+  
+  def get_event(event)
+    evt = _events[event]
+    unless evt
+      evt = Eventually::Event.new(event, self.class.registerable?(event))
+      _events[event] = evt
+    end
+    evt
   end
   
 end

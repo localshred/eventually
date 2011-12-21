@@ -25,10 +25,6 @@ module Eventually
       end
     end
     
-    def validate_arity_or_raise(event, emitter)
-      Eventually::Validation::Arity.new(event, emitter, arity).raise_unless_valid!
-    end
-    
     def continuous?
       @availability == :continuous
     end
