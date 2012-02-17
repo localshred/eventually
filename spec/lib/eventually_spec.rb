@@ -38,6 +38,31 @@ describe Eventually do
       end
     end
     
+    describe '.emits?' do
+      context 'when event in question is registered' do
+        it 'returns true' do
+          Emitter.emits(:jigger)
+          Emitter.emits?(:jigger).should be_true
+        end
+      end
+      
+      context 'when event in question is not registered' do
+        it 'returns false' do
+          Emitter.emits(:jigger)
+          Emitter.emits?(:jogger).should be_false
+        end
+      end
+      
+      context 'when given event is not symbolizable' do
+        it 'returns false' do
+          invalid_events = [nil, 1, 1.0, false]
+          invalid_events.each do |e|
+            Emitter.emits?(e).should be_false
+          end
+        end
+      end
+    end
+    
     describe '.emits' do
       it 'allows event definition at class level' do
         Emitter.emits(:jigger)
@@ -202,6 +227,16 @@ describe Eventually do
           emitter.on(:some_event, lambda{})
         end
       end
+    end
+  end
+  
+  describe '#emits?' do
+    it 'mirrors the class method' do
+      emitter = Emitter.new
+      Emitter.should_receive(:emits?).with(:jeff).and_return(false)
+      Emitter.should_receive(:emits?).with(:jorge).and_return(true)
+      emitter.emits?(:jeff).should be_false
+      emitter.emits?(:jorge).should be_true
     end
   end
   

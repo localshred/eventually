@@ -49,9 +49,9 @@ module Eventually
     end
     
     # Check if instances of this class have pre-defined
-    # the given event as potentially emittable
+    # the given event as emittable
     def emits?(evt)
-      emittable.key?(evt.to_sym)
+      emittable.key?(evt.to_sym) rescue false
     end
     
     # Return the maximum number of listeners before
@@ -117,6 +117,12 @@ module Eventually
       @emittable ||= {}
     end
   end # ClassMethods
+  
+  # Check if this instance has pre-defined the given event as emittable.
+  # Simply calls the class method of the same name.
+  def emits?(evt)
+    self.class.emits?(evt)
+  end
   
   # Event registration method. Takes an event to register against and either
   # a callable object (e.g. proc/lambda/detached method) or a block
