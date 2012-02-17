@@ -19,9 +19,9 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
 
   # specify any dependencies here; for example:
-  s.add_development_dependency "rspec"
-  s.add_development_dependency "yard"
-  s.add_development_dependency "redcarpet"
-  s.add_development_dependency "github-markup"
-  s.add_development_dependency "simplecov"
+  s.add_development_dependency 'rspec', '>= 2.8'
+  s.add_development_dependency 'yard'
+  s.add_development_dependency 'redcarpet'
+  s.add_development_dependency 'github-markup'
+  s.add_development_dependency 'simplecov'
 end

@@ -314,6 +314,15 @@ describe Eventually do
         end
       end
     end
+    
+    context 'when event callback raises an error' do
+      it 'bubbles the callback error back to the emitter' do
+        emitter.on(:dangerous) do
+          raise 'Error in callback'
+        end
+        expect { emitter.__send__(:emit, :dangerous) }.to raise_error('Error in callback')
+      end
+    end
   end
   
   describe '#once' do
